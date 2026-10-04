@@ -1,8 +1,47 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const { pool } = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
 const salesRoutes = require('./routes/salesRoutes');
+
+// Auto-create tables if they don't exist
+const initDB = async () => {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                password VARCHAR(255) NOT NULL,
+                role VARCHAR(50) DEFAULT 'salesmanager',
+                reset_password_token VARCHAR(255),
+                reset_password_expire TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS uploads (
+                id SERIAL PRIMARY KEY,
+                filename VARCHAR(255) NOT NULL,
+                uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS sales (
+                id SERIAL PRIMARY KEY,
+                upload_id INTEGER REFERENCES uploads(id) ON DELETE CASCADE,
+                date DATE NOT NULL,
+                product VARCHAR(255) NOT NULL,
+                category VARCHAR(255),
+                region VARCHAR(255),
+                quantity INTEGER NOT NULL,
+                price DECIMAL(10, 2) NOT NULL,
+                total_amount DECIMAL(10, 2) GENERATED ALWAYS AS (quantity * price) STORED,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        console.log('Database tables ready');
+    } catch (err) {
+        console.error('Failed to initialize database tables:', err.message);
+    }
+};
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -41,6 +80,7 @@ app.use((err, req, res, next) => {
     res.status(500).json({ message: 'Something went wrong!' });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
     console.log(`Server running on port ${PORT}`);
+    await initDB();
 });
