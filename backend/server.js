@@ -7,8 +7,23 @@ const salesRoutes = require('./routes/salesRoutes');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
-app.use(cors());
+// CORS — allow local dev and any Vercel deployment (preview + production)
+app.use(cors({
+    origin: (origin, callback) => {
+        // Allow requests with no origin (mobile apps, curl, Postman)
+        if (!origin) return callback(null, true);
+
+        const allowed =
+            origin === 'http://localhost:5173' ||
+            origin === 'http://localhost:3000' ||
+            origin.endsWith('.vercel.app') ||          // all Vercel preview/prod URLs
+            origin === process.env.FRONTEND_URL;       // custom domain if you set one
+
+        if (allowed) return callback(null, true);
+        callback(new Error(`CORS blocked: ${origin}`));
+    },
+    credentials: true,
+}));
 app.use(express.json());
 
 // Routes
