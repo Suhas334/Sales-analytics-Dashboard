@@ -17,8 +17,11 @@ const initDB = async () => {
                 role VARCHAR(50) DEFAULT 'salesmanager',
                 reset_password_token VARCHAR(255),
                 reset_password_expire TIMESTAMP,
+                last_login TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+            -- Add last_login column if it was created without it
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TIMESTAMP;
             CREATE TABLE IF NOT EXISTS uploads (
                 id SERIAL PRIMARY KEY,
                 filename VARCHAR(255) NOT NULL,

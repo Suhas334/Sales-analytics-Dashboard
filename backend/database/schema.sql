@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
     role VARCHAR(50) DEFAULT 'salesmanager', -- 'admin' or 'salesmanager'
     reset_password_token VARCHAR(255),
     reset_password_expire TIMESTAMP,
+    last_login TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
