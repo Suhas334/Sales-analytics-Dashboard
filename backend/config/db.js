@@ -1,13 +1,20 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
-const pool = new Pool({
-    user: process.env.DB_USER,
-    host: process.env.DB_HOST,
-    database: process.env.DB_NAME,
-    password: process.env.DB_PASSWORD,
-    port: process.env.DB_PORT,
-});
+// Render provides a single DATABASE_URL for PostgreSQL.
+// Fall back to individual vars for local development.
+const pool = process.env.DATABASE_URL
+    ? new Pool({
+          connectionString: process.env.DATABASE_URL,
+          ssl: { rejectUnauthorized: false }, // required by Render's hosted Postgres
+      })
+    : new Pool({
+          user: process.env.DB_USER,
+          host: process.env.DB_HOST,
+          database: process.env.DB_NAME,
+          password: process.env.DB_PASSWORD,
+          port: process.env.DB_PORT || 5432,
+      });
 
 pool.on('connect', () => {
     console.log('Connected to PostgreSQL database');
