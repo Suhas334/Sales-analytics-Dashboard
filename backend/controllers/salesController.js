@@ -1,5 +1,5 @@
 const db = require('../config/db');
-const fs = require('fs');
+const { Readable } = require('stream');
 const csv = require('csv-parser');
 
 const parseDate = (dateStr) => {
@@ -17,24 +17,20 @@ const parseDate = (dateStr) => {
 
 const uploadSales = (req, res) => {
     console.log('Upload Request Received');
-    console.log('Headers:', req.headers['content-type']);
-    if (req.file) {
-        console.log('File:', req.file.originalname, req.file.path);
-    } else {
-        console.error('No file in request');
-    }
-
     if (!req.file) {
         return res.status(400).json({ message: 'No file uploaded' });
     }
 
+    console.log('File:', req.file.originalname, 'Size:', req.file.size);
+
     const results = [];
-    fs.createReadStream(req.file.path)
+    // Parse CSV from memory buffer (works on Render — no disk writes)
+    const stream = Readable.from(req.file.buffer);
+    stream
         .pipe(csv())
         .on('data', (data) => results.push(data))
         .on('error', (err) => {
             console.error('CSV parse error', err);
-            try { fs.unlinkSync(req.file.path); } catch (e) { /* ignore */ }
             if (!res.headersSent) return res.status(500).json({ message: 'Error parsing CSV' });
         })
         .on('end', async () => {
@@ -43,7 +39,6 @@ const uploadSales = (req, res) => {
                 client = await db.pool.connect();
                 await client.query('BEGIN');
 
-                // Create Upload Record
                 const uploadRes = await client.query(
                     'INSERT INTO uploads (filename) VALUES ($1) RETURNING id',
                     [req.file.originalname]
@@ -52,9 +47,7 @@ const uploadSales = (req, res) => {
 
                 let inserted = 0;
 
-                // Parse mapping if provided (it comes as a stringified JSON in multipart/form-data)
                 let mapping = null;
-                console.log('--- Upload Debug ---');
                 console.log('Req Body:', req.body);
                 if (req.body.mapping) {
                     try {
@@ -69,7 +62,6 @@ const uploadSales = (req, res) => {
                     let dateStr, product, category, region, quantity, price;
 
                     if (mapping) {
-                        // Use user-provided mapping
                         dateStr = row[mapping.date];
                         product = row[mapping.product]?.trim();
                         category = row[mapping.category]?.trim();
@@ -77,14 +69,12 @@ const uploadSales = (req, res) => {
                         quantity = row[mapping.quantity];
                         price = row[mapping.price];
 
-                        // Debug first row
                         if (inserted === 0) {
-                            console.log('Debug First Row Mapping:');
-                            console.log('Row:', row);
+                            console.log('Debug First Row Mapping:', row);
                             console.log('Mapped - Date:', dateStr, 'Product:', product);
                         }
                     } else {
-                        // Fallback: Normalize keys to lowercase
+                        // Normalize keys to lowercase and trim whitespace
                         const normalizedRow = {};
                         Object.keys(row).forEach(key => {
                             normalizedRow[key.toLowerCase().trim()] = row[key];
@@ -96,6 +86,10 @@ const uploadSales = (req, res) => {
                         region = normalizedRow['region']?.trim();
                         quantity = normalizedRow['quantity'];
                         price = normalizedRow['price'];
+
+                        if (inserted === 0) {
+                            console.log('Debug First Row (no mapping):', normalizedRow);
+                        }
                     }
 
                     if (!dateStr || !product || !quantity || !price) continue;
@@ -116,6 +110,7 @@ const uploadSales = (req, res) => {
                 }
 
                 await client.query('COMMIT');
+                console.log(`Inserted ${inserted} of ${results.length} rows`);
                 res.status(201).json({ message: 'Sales data uploaded successfully', count: inserted });
             } catch (err) {
                 if (client) {
@@ -125,7 +120,6 @@ const uploadSales = (req, res) => {
                 res.status(500).json({ message: `Upload Error: ${err.message}` });
             } finally {
                 if (client) client.release();
-                try { fs.unlinkSync(req.file.path); } catch (e) { /* ignore */ }
             }
         });
 };

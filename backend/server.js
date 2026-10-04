@@ -39,6 +39,11 @@ const initDB = async () => {
                 total_amount DECIMAL(10, 2) GENERATED ALWAYS AS (quantity * price) STORED,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+            CREATE TABLE IF NOT EXISTS downloads (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                downloaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
         `);
         console.log('Database tables ready');
     } catch (err) {
